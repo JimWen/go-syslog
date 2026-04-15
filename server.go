@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	proxyproto "github.com/pires/go-proxyproto"
 	"gopkg.in/mcuadros/go-syslog.v2/format"
 )
 
@@ -138,6 +139,33 @@ func (s *Server) ListenTCP(addr string) error {
 	s.doneTcp = make(chan bool)
 	s.listeners = append(s.listeners, listener)
 	return nil
+}
+
+// ListenTCPProxyProtocol configures the server to listen on a TCP addr
+// with PROXY Protocol support. Connections with PROXY Protocol headers
+// will have their RemoteAddr() return the real client address.
+func (s *Server) ListenTCPProxyProtocol(addr string) error {
+	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	listener, err := net.ListenTCP("tcp", tcpAddr)
+	if err != nil {
+		return err
+	}
+
+	proxyListener := &proxyproto.Listener{Listener: listener}
+
+	s.doneTcp = make(chan bool)
+	s.listeners = append(s.listeners, proxyListener)
+	return nil
+}
+
+// ListenTCPWithListener configures the server to use a custom TCP listener.
+func (s *Server) ListenTCPWithListener(listener net.Listener) {
+	s.doneTcp = make(chan bool)
+	s.listeners = append(s.listeners, listener)
 }
 
 //Configure the server for listen on a TCP addr for TLS
