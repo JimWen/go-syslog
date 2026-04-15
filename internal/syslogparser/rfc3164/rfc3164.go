@@ -27,6 +27,7 @@ type header struct {
 
 type rfc3164message struct {
 	tag     string
+	pid     string
 	content string
 }
 
@@ -92,6 +93,7 @@ func (p *Parser) Dump() syslogparser.LogParts {
 		"timestamp": p.header.timestamp,
 		"hostname":  p.header.hostname,
 		"tag":       p.message.tag,
+		"pid":       p.message.pid,
 		"content":   p.message.content,
 		"priority":  p.priority.P,
 		"facility":  p.priority.F.Value,
@@ -128,11 +130,12 @@ func (p *Parser) parsemessage() (rfc3164message, error) {
 	var err error
 
 	if !p.skipTag {
-		tag, err := p.parseTag()
+		tag, pid, err := p.parseTag()
 		if err != nil {
 			return msg, err
 		}
 		msg.tag = tag
+		msg.pid = pid
 	}
 
 	content, err := p.parseContent()
@@ -167,7 +170,14 @@ func (p *Parser) parseTimestamp() (time.Time, error) {
 
 	found := false
 	for _, tsFmt := range tsFmts {
-		tsFmtLen = len(tsFmt)
+		if tsFmt == time.RFC3339 {
+			tsFmtLen = bytes.IndexByte(p.buff[p.cursor:], ' ')
+			if tsFmtLen == -1 {
+				continue
+			}
+		} else {
+			tsFmtLen = len(tsFmt)
+		}
 
 		if p.cursor+tsFmtLen > p.l {
 			continue
@@ -219,11 +229,13 @@ func (p *Parser) parseHostname() (string, error) {
 }
 
 // http://tools.ietf.org/html/rfc3164#section-4.1.3
-func (p *Parser) parseTag() (string, error) {
+func (p *Parser) parseTag() (string, string, error) {
 	var b byte
 	var endOfTag bool
 	var bracketOpen bool
+	var bracketClose bool
 	var tag []byte
+	var pid string
 	var err error
 	var found bool
 
@@ -233,17 +245,23 @@ func (p *Parser) parseTag() (string, error) {
 		if p.cursor == p.l {
 			// no tag found, reset cursor for content
 			p.cursor = from
-			return "", nil
+			return "", "", nil
 		}
 
 		b = p.buff[p.cursor]
 		bracketOpen = (b == '[')
+		bracketClose = (b == ']')
 		endOfTag = (b == ':' || b == ' ')
 
-		// XXX : parse PID ?
 		if bracketOpen {
 			tag = p.buff[from:p.cursor]
 			found = true
+		}
+
+		if bracketClose {
+			if found {
+				pid = string(p.buff[from+len(tag)+1 : p.cursor])
+			}
 		}
 
 		if endOfTag {
@@ -263,7 +281,7 @@ func (p *Parser) parseTag() (string, error) {
 		p.cursor++
 	}
 
-	return string(tag), err
+	return string(tag), pid, err
 }
 
 func (p *Parser) parseContent() (string, error) {

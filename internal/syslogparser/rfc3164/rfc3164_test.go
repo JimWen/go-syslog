@@ -46,6 +46,7 @@ func (s *Rfc3164TestSuite) TestParser_Valid(c *C) {
 		"timestamp": time.Date(now.Year(), time.October, 11, 22, 14, 15, 0, time.UTC),
 		"hostname":  "mymachine",
 		"tag":       "very.large.syslog.message.tag",
+		"pid":       "",
 		"content":   "'su root' failed for lonvick on /dev/pts/8",
 		"priority":  34,
 		"facility":  4,
@@ -78,6 +79,7 @@ func (s *Rfc3164TestSuite) TestParser_ValidNoTag(c *C) {
 		"timestamp": time.Date(now.Year(), time.October, 11, 22, 14, 15, 0, time.UTC),
 		"hostname":  "mymachine",
 		"tag":       "",
+		"pid":       "",
 		"content":   "singleword",
 		"priority":  34,
 		"facility":  4,
@@ -116,6 +118,7 @@ func (s *Rfc3164TestSuite) TestParser_NoTimestamp(c *C) {
 		"timestamp": now,
 		"hostname":  "",
 		"tag":       "",
+		"pid":       "",
 		"content":   "INFO     leaving (1) step postscripts",
 		"priority":  14,
 		"facility":  1,
@@ -153,6 +156,7 @@ func (s *Rfc3164TestSuite) TestParser_NoPriority(c *C) {
 		"timestamp": now,
 		"hostname":  "",
 		"tag":       "",
+		"pid":       "",
 		"content":   "Oct 11 22:14:15 Testing no priority",
 		"priority":  13,
 		"facility":  1,
@@ -195,6 +199,34 @@ func (s *Rfc3164TestSuite) TestParseHeader_RFC3339Timestamp(c *C) {
 	s.assertRfc3164Header(c, hdr, buff, 35, nil)
 }
 
+func (s *Rfc3164TestSuite) TestParseHeader_RFC3339UTCTimestamp(c *C) {
+	buff := []byte("2021-05-02T23:54:09Z myhostname mytag[488]: message")
+	hdr := header{
+		timestamp: time.Date(2021, time.May, 2, 23, 54, 9, 0, time.UTC),
+		hostname:  "myhostname",
+	}
+	s.assertRfc3164Header(c, hdr, buff, 31, nil)
+}
+
+func (s *Rfc3164TestSuite) TestParser_ValidRFC3339UTCTimestamp(c *C) {
+	buff := []byte("<30>2021-05-02T23:54:09Z myhostname mytag[488]: message")
+	p := NewParser(buff)
+	err := p.Parse()
+	c.Assert(err, IsNil)
+	obtained := p.Dump()
+	expected := syslogparser.LogParts{
+		"timestamp": time.Date(2021, time.May, 2, 23, 54, 9, 0, time.UTC),
+		"hostname":  "myhostname",
+		"tag":       "mytag",
+		"pid":       "488",
+		"content":   "message",
+		"priority":  30,
+		"facility":  3,
+		"severity":  6,
+	}
+	c.Assert(obtained, DeepEquals, expected)
+}
+
 func (s *Rfc3164TestSuite) TestParser_ValidRFC3339Timestamp(c *C) {
 	buff := []byte("<34>2018-01-12T22:14:15+00:00 mymachine app[101]: msg")
 	p := NewParser(buff)
@@ -205,6 +237,7 @@ func (s *Rfc3164TestSuite) TestParser_ValidRFC3339Timestamp(c *C) {
 		"timestamp": time.Date(2018, time.January, 12, 22, 14, 15, 0, time.UTC),
 		"hostname":  "mymachine",
 		"tag":       "app",
+		"pid":       "101",
 		"content":   "msg",
 		"priority":  34,
 		"facility":  4,
@@ -225,6 +258,7 @@ func (s *Rfc3164TestSuite) TestParsemessage_Valid(c *C) {
 	buff := []byte("sometag[123]: " + content)
 	hdr := rfc3164message{
 		tag:     "sometag",
+		pid:     "123",
 		content: content,
 	}
 
@@ -274,29 +308,49 @@ func (s *Rfc3164TestSuite) TestParseTimestamp_Valid(c *C) {
 func (s *Rfc3164TestSuite) TestParseTag_Pid(c *C) {
 	buff := []byte("apache2[10]:")
 	tag := "apache2"
+	pid := "10"
 
-	s.assertTag(c, tag, buff, len(buff), nil)
+	s.assertTag(c, tag, pid, buff, len(buff), nil)
 }
 
 func (s *Rfc3164TestSuite) TestParseTag_NoPid(c *C) {
 	buff := []byte("apache2:")
 	tag := "apache2"
+	pid := ""
 
-	s.assertTag(c, tag, buff, len(buff), nil)
+	s.assertTag(c, tag, pid, buff, len(buff), nil)
 }
 
 func (s *Rfc3164TestSuite) TestParseTag_TrailingSpace(c *C) {
 	buff := []byte("apache2: ")
 	tag := "apache2"
+	pid := ""
 
-	s.assertTag(c, tag, buff, len(buff), nil)
+	s.assertTag(c, tag, pid, buff, len(buff), nil)
 }
 
 func (s *Rfc3164TestSuite) TestParseTag_NoTag(c *C) {
 	buff := []byte("apache2")
 	tag := ""
+	pid := ""
 
-	s.assertTag(c, tag, buff, 0, nil)
+	s.assertTag(c, tag, pid, buff, 0, nil)
+}
+
+func (s *Rfc3164TestSuite) TestParseTag_EmptyPid(c *C) {
+	buff := []byte("app[]:")
+	tag := "app"
+	pid := ""
+
+	s.assertTag(c, tag, pid, buff, len(buff), nil)
+}
+
+func (s *Rfc3164TestSuite) TestParseTag_NoBracketClose(c *C) {
+	buff := []byte("app[123:")
+	tag := "app"
+	pid := ""
+
+	s.assertTag(c, tag, pid, buff, len(buff), nil)
 }
 
 func (s *Rfc3164TestSuite) TestParseContent_Valid(c *C) {
@@ -346,7 +400,7 @@ func (s *Rfc3164TestSuite) BenchmarkParseTag(c *C) {
 	p := NewParser(buff)
 
 	for i := 0; i < c.N; i++ {
-		_, err := p.parseTag()
+		_, _, err := p.parseTag()
 		if err != nil {
 			panic(err)
 		}
@@ -393,10 +447,11 @@ func (s *Rfc3164TestSuite) assertTimestamp(c *C, ts time.Time, b []byte, expC in
 	c.Assert(err, Equals, e)
 }
 
-func (s *Rfc3164TestSuite) assertTag(c *C, t string, b []byte, expC int, e error) {
+func (s *Rfc3164TestSuite) assertTag(c *C, t string, pid string, b []byte, expC int, e error) {
 	p := NewParser(b)
-	obtained, err := p.parseTag()
-	c.Assert(obtained, Equals, t)
+	obtainedTag, obtainedPid, err := p.parseTag()
+	c.Assert(obtainedTag, Equals, t)
+	c.Assert(obtainedPid, Equals, pid)
 	c.Assert(p.cursor, Equals, expC)
 	c.Assert(err, Equals, e)
 }
