@@ -199,6 +199,34 @@ func (s *Rfc3164TestSuite) TestParseHeader_RFC3339Timestamp(c *C) {
 	s.assertRfc3164Header(c, hdr, buff, 35, nil)
 }
 
+func (s *Rfc3164TestSuite) TestParseHeader_RFC3339UTCTimestamp(c *C) {
+	buff := []byte("2021-05-02T23:54:09Z myhostname mytag[488]: message")
+	hdr := header{
+		timestamp: time.Date(2021, time.May, 2, 23, 54, 9, 0, time.UTC),
+		hostname:  "myhostname",
+	}
+	s.assertRfc3164Header(c, hdr, buff, 31, nil)
+}
+
+func (s *Rfc3164TestSuite) TestParser_ValidRFC3339UTCTimestamp(c *C) {
+	buff := []byte("<30>2021-05-02T23:54:09Z myhostname mytag[488]: message")
+	p := NewParser(buff)
+	err := p.Parse()
+	c.Assert(err, IsNil)
+	obtained := p.Dump()
+	expected := syslogparser.LogParts{
+		"timestamp": time.Date(2021, time.May, 2, 23, 54, 9, 0, time.UTC),
+		"hostname":  "myhostname",
+		"tag":       "mytag",
+		"pid":       "488",
+		"content":   "message",
+		"priority":  30,
+		"facility":  3,
+		"severity":  6,
+	}
+	c.Assert(obtained, DeepEquals, expected)
+}
+
 func (s *Rfc3164TestSuite) TestParser_ValidRFC3339Timestamp(c *C) {
 	buff := []byte("<34>2018-01-12T22:14:15+00:00 mymachine app[101]: msg")
 	p := NewParser(buff)
