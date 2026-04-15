@@ -1,7 +1,6 @@
 package syslog
 
 import (
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"time"
@@ -46,7 +45,6 @@ func getClientConfig() *tls.Config {
 		ServerName:         "localhost",
 		RootCAs:            capool,
 	}
-	config.Rand = rand.Reader
 
 	return &config
 }

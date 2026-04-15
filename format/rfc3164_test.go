@@ -19,6 +19,7 @@ func (s *FormatSuite) TestRFC3164_CorrectParsingTypical(c *C) {
 	c.Assert(parser.Dump()["content"], Equals, "ciao")
 	c.Assert(parser.Dump()["hostname"], Equals, "myhostname")
 	c.Assert(parser.Dump()["tag"], Equals, "myprogram")
+	c.Assert(parser.Dump()["pid"], Equals, "")
 
 }
 func (s *FormatSuite) TestRFC3164_CorrectParsingTypicalWithPID(c *C) {
@@ -31,6 +32,7 @@ func (s *FormatSuite) TestRFC3164_CorrectParsingTypicalWithPID(c *C) {
 	c.Assert(parser.Dump()["content"], Equals, "ciao")
 	c.Assert(parser.Dump()["hostname"], Equals, "myhostname")
 	c.Assert(parser.Dump()["tag"], Equals, "myprogram")
+	c.Assert(parser.Dump()["pid"], Equals, "42")
 
 }
 
@@ -44,6 +46,7 @@ func (s *FormatSuite) TestRFC3164_CorrectParsingGoSyslogUTC(c *C) {
 	c.Assert(parser.Dump()["content"], Equals, "message")
 	c.Assert(parser.Dump()["hostname"], Equals, "myhostname")
 	c.Assert(parser.Dump()["tag"], Equals, "mytag")
+	c.Assert(parser.Dump()["pid"], Equals, "488")
 
 }
 
@@ -73,5 +76,6 @@ func (s *FormatSuite) TestRFC3164_CorrectParsingJournald(c *C) {
 	c.Assert(parser.Dump()["content"], Equals, "blah")
 	// c.Assert(parser.Dump()["hostname"], Equals, "myhostname")
 	c.Assert(parser.Dump()["tag"], Equals, "myprog")
+	c.Assert(parser.Dump()["pid"], Equals, "153")
 
 }

@@ -337,6 +337,22 @@ func (s *Rfc3164TestSuite) TestParseTag_NoTag(c *C) {
 	s.assertTag(c, tag, pid, buff, 0, nil)
 }
 
+func (s *Rfc3164TestSuite) TestParseTag_EmptyPid(c *C) {
+	buff := []byte("app[]:")
+	tag := "app"
+	pid := ""
+
+	s.assertTag(c, tag, pid, buff, len(buff), nil)
+}
+
+func (s *Rfc3164TestSuite) TestParseTag_NoBracketClose(c *C) {
+	buff := []byte("app[123:")
+	tag := "app"
+	pid := ""
+
+	s.assertTag(c, tag, pid, buff, len(buff), nil)
+}
+
 func (s *Rfc3164TestSuite) TestParseContent_Valid(c *C) {
 	buff := []byte(" foo bar baz quux ")
 	content := string(bytes.Trim(buff, " "))
